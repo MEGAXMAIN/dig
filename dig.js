@@ -2,16 +2,6 @@
   "use strict";
   if (window.__digOpen) { window.__digOpen(); return; }
 
-  const scriptUrl = document.currentScript && document.currentScript.src;
-  const baseUrl = scriptUrl ? scriptUrl.slice(0, scriptUrl.lastIndexOf("/") + 1) : "";
-  const loadScript = (url) => new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = url; script.onload = resolve; script.onerror = () => reject(new Error(`Could not load ${url}`));
-    document.head.appendChild(script);
-  });
-
-  const CORE_URL = `${baseUrl}dig-core.js`;
-  const DAGRE_URL = "https://cdn.jsdelivr.net/npm/@dagrejs/dagre@1.1.4/dist/dagre.min.js";
   let root;
   let currentLayout;
   let phaseOffsets = {};
@@ -66,7 +56,7 @@
     try {
       const graph = window.DigCore.parseMermaid(source);
       if (!graph.nodes.size) throw new Error("No flowchart nodes were found. Start with flowchart TB or graph LR.");
-      currentLayout = window.DigCore.layoutGraph(graph, window.dagre, phaseOffsets);
+      currentLayout = window.DigCore.layoutGraph(graph, null, phaseOffsets);
       const padding = 34;
       const phases = Array.from(currentLayout.phases.values()).map((phase) => `
         <g class="sp-phase" data-phase="${esc(phase.id)}">
@@ -174,9 +164,10 @@
   }
 
   window.__digOpen = open;
-  Promise.resolve()
-    .then(() => window.DigCore || loadScript(CORE_URL))
-    .then(() => window.dagre || loadScript(DAGRE_URL))
-    .then(open)
-    .catch((error) => { alert(`Dig could not start: ${error.message}`); });
+  try {
+    if (!window.DigCore) throw new Error("The self-contained Dig bundle is incomplete. Reinstall the bookmark and try again.");
+    open();
+  } catch (error) {
+    alert(`Dig could not start: ${error.message}`);
+  }
 })();
