@@ -1,0 +1,4 @@
+# Customer workflow source files are intentionally kept local.
+arctera-*.mermaid
+
+.DS_Store
