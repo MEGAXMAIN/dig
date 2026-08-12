@@ -1,6 +1,6 @@
 # Dig
 
-Dig converts Mermaid flowcharts into editable ClickUp Whiteboard shapes. It supports steps, decisions, labeled connectors, class-based colors, phase containers (`subgraph`), Dagre auto-layout, and manual phase positioning before injection.
+Dig converts Mermaid flowcharts into editable ClickUp Whiteboard shapes. It supports steps, decisions, labeled connectors, class-based colors, phase containers (`subgraph`), compact layered auto-layout, and manual phase positioning before injection.
 
 ## Install
 
@@ -9,6 +9,8 @@ Dig is a static site. Host this folder on an HTTPS origin (GitHub Pages, Cloudfl
 The Codex in-app preview browser is separate from Chrome, Edge, Safari, and Firefox. A bookmark installed in one browser cannot run in a ClickUp tab in another browser.
 
 If dragging does not preserve the bookmarklet, select **Copy bookmark code**, create or edit a bookmark in the ClickUp browser, and paste the copied code into its URL or Address field. If clicking Dig opens the installer page, delete that bookmark and reinstall it with this manual method.
+
+Dig's installed bookmark is self-contained. It includes the parser, compact layout engine, and Whiteboard overlay instead of loading scripts from GitHub Pages or a CDN at runtime. This is required because ClickUp staging and production pages restrict external script origins. Keeping the bookmark small also avoids execution failures in managed browser profiles.
 
 Do not install from a `file://` URL. Browsers block HTTPS pages such as ClickUp from loading bookmarklet code from local files.
 
@@ -19,8 +21,8 @@ Do not install from a `file://` URL. Browsers block HTTPS pages such as ClickUp 
 3. Paste Mermaid flowchart syntax.
 4. Select **Preview** (or press Cmd/Ctrl+Enter).
 5. Drag phase headers if needed.
-6. Select **Inject editable shapes**.
-7. If the browser blocks automatic injection, click the Whiteboard canvas and press Cmd+V or Ctrl+V. Dig has already copied the editable-shape payload.
+6. Select **Copy editable shapes**.
+7. Click the Whiteboard canvas and press Cmd+V or Ctrl+V. The real keyboard paste allows ClickUp to process and synchronize the new records normally.
 
 ## Source workflows
 
@@ -42,13 +44,15 @@ Sequence, class, state, ER, Gantt, and mind-map diagrams are not currently suppo
 
 ## How ClickUp injection works
 
-ClickUp does not publish a Whiteboard-shape creation API. Dig generates an Excalidraw-compatible clipboard payload, copies it, and attempts to dispatch it to the visible Whiteboard canvas. ClickUp users have documented that copying Excalidraw content into a Whiteboard preserves shapes, arrows, and text. When a browser rejects a synthetic paste, manual Cmd/Ctrl+V uses the same payload.
+ClickUp does not publish a Whiteboard-shape creation API. Dig generates an Excalidraw-compatible clipboard payload and copies it. You must then paste it with Cmd/Ctrl+V so ClickUp handles the paste as a real user action and synchronizes the resulting Whiteboard records. Dig intentionally does not dispatch a synthetic paste event because that can create local records that the Whiteboard server does not accept.
 
 This is an unofficial compatibility bridge and may require maintenance when ClickUp changes Whiteboard internals.
 
 ## Files
 
 - `index.html` — bookmarklet install page and quick guide
+- `dig-bookmarklet.js` — generated self-contained bookmarklet payload
+- `build-bookmarklet.mjs` — rebuilds the self-contained payload
 - `dig.js` — ClickUp overlay, preview, phase dragging, and injection
-- `dig-core.js` — Mermaid parsing, Dagre layout, and editable-shape serialization
+- `dig-core.js` — Mermaid parsing, compact layered layout, and editable-shape serialization
 - `tests/core.test.js` — parser and serialization smoke tests
