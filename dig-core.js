@@ -206,30 +206,77 @@
     return { width, height };
   };
 
-  function layoutFlat(nodes, edges, direction, dagre) {
-    const g = new dagre.graphlib.Graph({ multigraph: true });
-    g.setGraph({ rankdir: direction || "TB", nodesep: 52, ranksep: 86, marginx: 0, marginy: 0 });
-    g.setDefaultEdgeLabel(() => ({}));
-    nodes.forEach((node) => {
-      const size = estimateNodeSize(node);
-      g.setNode(node.id, { width: size.width, height: size.height });
+  function layoutItems(items, edges, direction, nodeGap = 52, rankGap = 86) {
+    const ids = new Set(items.map((item) => item.id));
+    const outgoing = new Map(items.map((item) => [item.id, new Set()]));
+    const indegree = new Map(items.map((item) => [item.id, 0]));
+    const rank = new Map(items.map((item) => [item.id, 0]));
+
+    edges.forEach((edge) => {
+      if (!ids.has(edge.from) || !ids.has(edge.to) || edge.from === edge.to) return;
+      const targets = outgoing.get(edge.from);
+      if (!targets.has(edge.to)) {
+        targets.add(edge.to);
+        indegree.set(edge.to, indegree.get(edge.to) + 1);
+      }
     });
-    edges.forEach((edge, index) => {
-      if (g.hasNode(edge.from) && g.hasNode(edge.to)) g.setEdge(edge.from, edge.to, {}, `${edge.id}-${index}`);
+
+    const queue = items.filter((item) => indegree.get(item.id) === 0).map((item) => item.id);
+    const visited = new Set();
+    while (queue.length) {
+      const id = queue.shift();
+      visited.add(id);
+      outgoing.get(id).forEach((target) => {
+        rank.set(target, Math.max(rank.get(target), rank.get(id) + 1));
+        indegree.set(target, indegree.get(target) - 1);
+        if (indegree.get(target) === 0) queue.push(target);
+      });
+    }
+
+    const lastRank = Math.max(0, ...rank.values());
+    items.filter((item) => !visited.has(item.id)).forEach((item) => rank.set(item.id, lastRank + 1));
+    const ranks = new Map();
+    items.forEach((item) => {
+      const level = rank.get(item.id);
+      if (!ranks.has(level)) ranks.set(level, []);
+      ranks.get(level).push(item);
     });
-    dagre.layout(g);
+
+    const horizontal = /^(LR|RL)$/i.test(direction || "TB");
+    const levels = Array.from(ranks.keys()).sort((a, b) => a - b);
+    const crossSizes = levels.map((level) => {
+      const group = ranks.get(level);
+      return group.reduce((sum, item) => sum + (horizontal ? item.height : item.width), 0) + Math.max(0, group.length - 1) * nodeGap;
+    });
+    const maxCross = Math.max(1, ...crossSizes);
     const placed = new Map();
-    nodes.forEach((node) => {
-      const d = g.node(node.id);
-      const size = estimateNodeSize(node);
-      placed.set(node.id, Object.assign({}, node, { x: d.x - size.width / 2, y: d.y - size.height / 2, width: size.width, height: size.height }));
+    let primary = 0;
+    levels.forEach((level, levelIndex) => {
+      const group = ranks.get(level);
+      const primarySize = Math.max(...group.map((item) => horizontal ? item.width : item.height));
+      let cross = (maxCross - crossSizes[levelIndex]) / 2;
+      group.forEach((item) => {
+        const x = horizontal ? primary + (primarySize - item.width) / 2 : cross;
+        const y = horizontal ? cross : primary + (primarySize - item.height) / 2;
+        placed.set(item.id, Object.assign({}, item, { x, y }));
+        cross += (horizontal ? item.height : item.width) + nodeGap;
+      });
+      primary += primarySize + rankGap;
     });
-    const meta = g.graph();
-    return { nodes: placed, width: meta.width || 1, height: meta.height || 1 };
+
+    let width = Math.max(1, ...Array.from(placed.values()).map((item) => item.x + item.width));
+    let height = Math.max(1, ...Array.from(placed.values()).map((item) => item.y + item.height));
+    if (/^RL$/i.test(direction || "")) placed.forEach((item) => { item.x = width - item.x - item.width; });
+    if (/^BT$/i.test(direction || "")) placed.forEach((item) => { item.y = height - item.y - item.height; });
+    return { nodes: placed, width, height };
   }
 
-  function layoutGraph(graph, dagre, phaseOffsets) {
-    if (!dagre || !dagre.graphlib) throw new Error("Dagre did not load. Check your network connection and try again.");
+  function layoutFlat(nodes, edges, direction) {
+    const sized = nodes.map((node) => Object.assign({}, node, estimateNodeSize(node)));
+    return layoutItems(sized, edges, direction);
+  }
+
+  function layoutGraph(graph, _dagre, phaseOffsets) {
     const phases = new Map();
     const phaseIds = Array.from(graph.phases.keys());
     const ungroupedId = "__ungrouped__";
@@ -238,7 +285,7 @@
     graph.nodes.forEach((node) => (groups.get(node.phaseId) || groups.get(ungroupedId)).push(node));
 
     if (!phaseIds.length) {
-      const result = layoutFlat(Array.from(graph.nodes.values()), graph.edges, graph.direction, dagre);
+      const result = layoutFlat(Array.from(graph.nodes.values()), graph.edges, graph.direction);
       return { graph, nodes: result.nodes, phases, width: result.width, height: result.height, edges: graph.edges };
     }
 
@@ -247,7 +294,7 @@
       const memberIds = new Set(members.map((node) => node.id));
       const internal = graph.edges.filter((edge) => memberIds.has(edge.from) && memberIds.has(edge.to));
       const phase = graph.phases.get(phaseId);
-      const local = members.length ? layoutFlat(members, internal, phase?.direction || graph.direction, dagre) : { nodes: new Map(), width: 220, height: 80 };
+      const local = members.length ? layoutFlat(members, internal, phase?.direction || graph.direction) : { nodes: new Map(), width: 220, height: 80 };
       phases.set(phaseId, {
         id: phaseId,
         label: phase?.label || "Other",
@@ -257,25 +304,22 @@
       });
     });
 
-    const phaseGraph = new dagre.graphlib.Graph({ multigraph: true });
-    phaseGraph.setGraph({ rankdir: graph.direction, nodesep: 84, ranksep: 110, marginx: 30, marginy: 30 });
-    phaseGraph.setDefaultEdgeLabel(() => ({}));
-    phases.forEach((phase) => phaseGraph.setNode(phase.id, { width: phase.width, height: phase.height }));
-    graph.edges.forEach((edge, index) => {
+    const phaseEdges = [];
+    graph.edges.forEach((edge) => {
       const fromNode = graph.nodes.get(edge.from);
       const toNode = graph.nodes.get(edge.to);
       const fromPhase = fromNode?.phaseId || ungroupedId;
       const toPhase = toNode?.phaseId || ungroupedId;
-      if (fromPhase !== toPhase && phaseGraph.hasNode(fromPhase) && phaseGraph.hasNode(toPhase)) phaseGraph.setEdge(fromPhase, toPhase, {}, `p-${index}`);
+      if (fromPhase !== toPhase && phases.has(fromPhase) && phases.has(toPhase)) phaseEdges.push({ from: fromPhase, to: toPhase });
     });
-    dagre.layout(phaseGraph);
+    const phaseLayout = layoutItems(Array.from(phases.values()), phaseEdges, graph.direction, 84, 110);
 
     const placedNodes = new Map();
     phases.forEach((phase) => {
-      const pos = phaseGraph.node(phase.id);
+      const pos = phaseLayout.nodes.get(phase.id);
       const offset = phaseOffsets?.[phase.id] || { x: 0, y: 0 };
-      phase.x = pos.x - phase.width / 2 + offset.x;
-      phase.y = pos.y - phase.height / 2 + offset.y;
+      phase.x = pos.x + 30 + offset.x;
+      phase.y = pos.y + 30 + offset.y;
       phase.local.nodes.forEach((node, id) => placedNodes.set(id, Object.assign({}, node, { x: node.x + phase.x + 36, y: node.y + phase.y + 74 })));
     });
     const xs = Array.from(phases.values()).map((p) => p.x);
