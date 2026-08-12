@@ -563,15 +563,6 @@
     });
   }
 
-  function findCanvasTarget() {
-    root.style.display = "none";
-    const center = document.elementsFromPoint(innerWidth / 2, innerHeight / 2);
-    root.style.display = "";
-    return center.find((el) => el.matches && el.matches("canvas,[role='application'],[data-testid*='whiteboard'],.excalidraw,.tl-container"))
-      || document.querySelector("[data-testid*='whiteboard'] canvas,.excalidraw canvas,.tl-container canvas,canvas")
-      || document.body;
-  }
-
   async function inject() {
     if (!currentLayout) return;
     const payload = JSON.stringify(window.DigCore.toExcalidraw(currentLayout));
@@ -579,16 +570,10 @@
     catch (_) {
       const temp = document.createElement("textarea"); temp.value = payload; document.body.appendChild(temp); temp.select(); document.execCommand("copy"); temp.remove();
     }
-    const target = findCanvasTarget();
-    let dispatched = false;
-    try {
-      const transfer = new DataTransfer(); transfer.setData("text/plain", payload); transfer.setData("application/vnd.excalidraw+json", payload);
-      dispatched = target.dispatchEvent(new ClipboardEvent("paste", { clipboardData: transfer, bubbles: true, cancelable: true }));
-    } catch (_) {}
     close();
     const toast = document.createElement("div"); toast.className = "sp-toast";
-    toast.textContent = dispatched ? "Diagram injected. If it is not visible, press ⌘V / Ctrl+V." : "Diagram copied — click the Whiteboard and press ⌘V / Ctrl+V.";
-    document.body.appendChild(toast); setTimeout(() => toast.remove(), 5200);
+    toast.textContent = "Diagram copied — click the Whiteboard and press ⌘V / Ctrl+V to add it safely.";
+    document.body.appendChild(toast); setTimeout(() => toast.remove(), 8000);
   }
 
   function close() { if (root) { root.remove(); root = null; } }
@@ -598,7 +583,7 @@
     root.innerHTML = `<style>${styles}</style><div class="sp-backdrop"></div><section class="sp-panel" role="dialog" aria-modal="true" aria-label="Dig Mermaid importer">
       <header class="sp-head"><div class="sp-brand"><span class="sp-wave">D</span><span>Dig</span></div><div class="sp-sub">Mermaid → editable ClickUp Whiteboard shapes</div><div class="sp-spacer"></div><button class="sp-close" title="Close" aria-label="Close">×</button></header>
       <main class="sp-main"><section class="sp-input"><div class="sp-label">Mermaid flowchart</div><textarea class="sp-textarea" spellcheck="false" placeholder="flowchart LR\n  A[Discovery call] --> B{Approved?}\n  B -- Yes --> C[Build solution]"></textarea><div class="sp-error"></div><div class="sp-hint">Supported: flowchart/graph, subgraph phases, steps, decisions, class colors, labeled connectors, and TB/LR layouts. Drag a phase header in the preview to reposition it.</div></section><section class="sp-preview"><div class="sp-stage"><div class="sp-empty"><strong>Loading Dig…</strong>Preparing the diagram engine.</div></div></section></main>
-      <footer class="sp-foot"><div class="sp-status sp-count">No diagram yet</div><button class="sp-btn sp-secondary sp-reset">Reset phases</button><button class="sp-btn sp-secondary sp-preview-btn">Preview</button><button class="sp-btn sp-primary" disabled>Inject editable shapes</button></footer></section>`;
+      <footer class="sp-foot"><div class="sp-status sp-count">No diagram yet</div><button class="sp-btn sp-secondary sp-reset">Reset phases</button><button class="sp-btn sp-secondary sp-preview-btn">Preview</button><button class="sp-btn sp-primary" disabled>Copy editable shapes</button></footer></section>`;
     document.body.appendChild(root);
     root.querySelector(".sp-close").addEventListener("click", close);
     root.querySelector(".sp-backdrop").addEventListener("click", close);
