@@ -1,6 +1,6 @@
 # Dig
 
-Dig converts Mermaid flowcharts into editable ClickUp Whiteboard shapes. It supports steps, decisions, labeled connectors, class-based colors, phase containers (`subgraph`), compact layered auto-layout, and manual phase positioning before injection.
+Dig converts Mermaid flowcharts into editable ClickUp Whiteboard shapes. Its runtime is based directly on the supplied Splash installer, preserving Splash's parser, Dagre compound layout, draggable phase preview, locked-container re-layout, native tldraw injection, batching, bindings, clear-board option, and zoom-to-fit behavior. Dig adds its own name and a 50-app SaaS icon catalog.
 
 ## Install
 
@@ -10,7 +10,7 @@ The Codex in-app preview browser is separate from Chrome, Edge, Safari, and Fire
 
 If dragging does not preserve the bookmarklet, select **Copy bookmark code**, create or edit a bookmark in the ClickUp browser, and paste the copied code into its URL or Address field. If clicking Dig opens the installer page, delete that bookmark and reinstall it with this manual method.
 
-Dig's installed bookmark is self-contained. It includes the parser, compact layout engine, and Whiteboard overlay instead of loading scripts from GitHub Pages or a CDN at runtime. This is required because ClickUp staging and production pages restrict external script origins. Keeping the bookmark small also avoids execution failures in managed browser profiles.
+Dig's installed bookmark contains the parser, overlay, preview, and Whiteboard injection code. Like Splash, it loads Dagre from cdnjs when you preview or inject a diagram. It fetches only the SaaS icons used in the current diagram from Iconify and falls back to a generated monogram if an icon cannot load.
 
 Do not install from a `file://` URL. Browsers block HTTPS pages such as ClickUp from loading bookmarklet code from local files.
 
@@ -19,9 +19,9 @@ Do not install from a `file://` URL. Browsers block HTTPS pages such as ClickUp 
 1. Open a ClickUp Whiteboard.
 2. Click the Dig bookmark.
 3. Paste Mermaid flowchart syntax.
-4. Select **Preview** (or press Cmd/Ctrl+Enter).
-5. Drag phase headers if needed.
-6. Select **Inject into Whiteboard**. Dig uses the live ClickUp tldraw editor to create native shapes and bindings, matching Splash's working injection method.
+4. Select **Chart Course & Arrange Phases**.
+5. Drag the Intake phase—or any other top-level phase block—to the position you want.
+6. Select **Dig into Whiteboard**. Dig re-lays out the nodes inside the moved containers, then uses the live ClickUp tldraw editor to create native assets, shapes, and bindings.
 
 ## Source workflows
 
@@ -37,8 +37,8 @@ Do not install from a `file://` URL. Browsers block HTTPS pages such as ClickUp 
 - `subgraph` phase containers
 - solid and dotted connectors, including labels
 - `classDef`, `class`, and `:::class` color styling
-- semantic classes containing `agent`, `integration`, or `dashboard`
-- 50 SaaS application icons using `:::icon-<slug>` classes
+- Splash node prefixes including `STEP_`, `AGENT_`, `INT_`, `DASH_`, `DECIDE_`, `NOTE_`, `DOC_`, and others
+- 50 SaaS application icons using `:::icon_<slug>` or `:::icon-<slug>` classes
 
 ### SaaS icons
 
@@ -46,11 +46,11 @@ Add an icon class to a Mermaid node, for example:
 
 ```mermaid
 flowchart LR
-  A[OpenAI]:::icon-openai --> B[ServiceNow]:::icon-servicenow
-  B --> C[Claude]:::icon-claude
+  A[OpenAI]:::icon_openai --> B[ServiceNow]:::icon_servicenow
+  B --> C[Claude]:::icon_claude
 ```
 
-The Dig panel includes a searchable 50-app catalog and can insert a correctly formatted icon node. It also recognizes app names in node labels. Icons include OpenAI, Claude, ServiceNow, Salesforce, Slack, Microsoft Teams, Zoom, Google Workspace, AWS, Azure, GitHub, Jira, Notion, ClickUp, HubSpot, Workday, Stripe, Shopify, Figma, Canva, Miro, Zapier, Snowflake, Datadog, Cloudflare, Twilio, and other major SaaS applications. Dig fetches only the icons used in the current diagram and falls back to a branded monogram if an icon host is unavailable.
+The Dig panel includes a 50-app catalog and can insert a correctly formatted icon node. It also recognizes exact app names in node labels. Icons include OpenAI, Claude, ServiceNow, Salesforce, Slack, Microsoft Teams, Zoom, Google Workspace, AWS, Azure, GitHub, Jira, Notion, ClickUp, HubSpot, Workday, Stripe, Shopify, Figma, Canva, Miro, Zapier, Snowflake, Datadog, Cloudflare, Twilio, and other major SaaS applications.
 
 Sequence, class, state, ER, Gantt, and mind-map diagrams are not currently supported.
 
@@ -63,8 +63,8 @@ This is an unofficial compatibility bridge and may require maintenance when Clic
 ## Files
 
 - `index.html` — bookmarklet install page and quick guide
-- `dig-bookmarklet.js` — generated self-contained bookmarklet payload
-- `build-bookmarklet.mjs` — rebuilds the self-contained payload
-- `dig.js` — ClickUp overlay, preview, phase dragging, and injection
-- `dig-core.js` — Mermaid parsing, compact layered layout, and editable-shape serialization
-- `tests/core.test.js` — parser and serialization smoke tests
+- `splash-source.js` — the unmodified JavaScript extracted from the supplied Splash installer
+- `build-bookmarklet.mjs` — applies the Dig name and icon extension to the Splash source
+- `dig.js` — generated Dig runtime
+- `dig-bookmarklet.js` — generated bookmarklet payload
+- `tests/bookmarklet.test.js` — behavior, icon, and bookmark-size tests
