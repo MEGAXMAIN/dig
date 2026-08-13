@@ -21,8 +21,7 @@ Do not install from a `file://` URL. Browsers block HTTPS pages such as ClickUp 
 3. Paste Mermaid flowchart syntax.
 4. Select **Preview** (or press Cmd/Ctrl+Enter).
 5. Drag phase headers if needed.
-6. Select **Copy editable shapes**.
-7. Click the Whiteboard canvas and press Cmd+V or Ctrl+V. The real keyboard paste allows ClickUp to process and synchronize the new records normally.
+6. Select **Inject into Whiteboard**. Dig uses the live ClickUp tldraw editor to create native shapes and bindings, matching Splash's working injection method.
 
 ## Source workflows
 
@@ -39,12 +38,25 @@ Do not install from a `file://` URL. Browsers block HTTPS pages such as ClickUp 
 - solid and dotted connectors, including labels
 - `classDef`, `class`, and `:::class` color styling
 - semantic classes containing `agent`, `integration`, or `dashboard`
+- 50 SaaS application icons using `:::icon-<slug>` classes
+
+### SaaS icons
+
+Add an icon class to a Mermaid node, for example:
+
+```mermaid
+flowchart LR
+  A[OpenAI]:::icon-openai --> B[ServiceNow]:::icon-servicenow
+  B --> C[Claude]:::icon-claude
+```
+
+The Dig panel includes a searchable 50-app catalog and can insert a correctly formatted icon node. It also recognizes app names in node labels. Icons include OpenAI, Claude, ServiceNow, Salesforce, Slack, Microsoft Teams, Zoom, Google Workspace, AWS, Azure, GitHub, Jira, Notion, ClickUp, HubSpot, Workday, Stripe, Shopify, Figma, Canva, Miro, Zapier, Snowflake, Datadog, Cloudflare, Twilio, and other major SaaS applications. Dig fetches only the icons used in the current diagram and falls back to a branded monogram if an icon host is unavailable.
 
 Sequence, class, state, ER, Gantt, and mind-map diagrams are not currently supported.
 
 ## How ClickUp injection works
 
-ClickUp does not publish a Whiteboard-shape creation API. Dig generates an Excalidraw-compatible clipboard payload and copies it. You must then paste it with Cmd/Ctrl+V so ClickUp handles the paste as a real user action and synchronizes the resulting Whiteboard records. Dig intentionally does not dispatch a synthetic paste event because that can create local records that the Whiteboard server does not accept.
+ClickUp does not publish a Whiteboard-shape creation API. Dig follows Splash's working approach: it locates the live tldraw editor attached to the active Whiteboard and calls its native `createAssets`, `createShapes`, and `createBindings` methods. This avoids the incompatible Excalidraw clipboard bridge. The integration still depends on undocumented ClickUp internals and may need maintenance when ClickUp changes Whiteboards.
 
 This is an unofficial compatibility bridge and may require maintenance when ClickUp changes Whiteboard internals.
 
