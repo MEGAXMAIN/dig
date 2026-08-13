@@ -2,6 +2,21 @@
 
 Dig converts Mermaid flowcharts into editable ClickUp Whiteboard shapes. Its runtime is based directly on the supplied Splash installer, preserving Splash's parser, Dagre compound layout, draggable phase preview, locked-container re-layout, native tldraw injection, batching, bindings, clear-board option, and zoom-to-fit behavior. Dig adds its own name and a 50-app SaaS icon catalog.
 
+## Formal workflow standard
+
+Dig applies standard flowchart notation consistently across workflows:
+
+- `START_` — green oval
+- `TASK_`, `PROCESS_`, or `STEP_` — blue rectangle
+- `DECISION_` or `DECIDE_` — orange diamond
+- `END_` — red oval
+- `-->` — directional arrow
+- Yes/approved/success arrows — green
+- No/rejected/failed arrows — red
+- Other directional arrows — black
+
+The Dig panel includes **Insert formal workflow template**, which creates a ready-to-edit two-phase example using these conventions. Mermaid decision braces such as `DECISION_READY{"Ready?"}` are also recognized automatically.
+
 ## Install
 
 Dig is a static site. Host this folder on an HTTPS origin (GitHub Pages, Cloudflare Pages, Netlify, or an internal static host), then open `index.html` in the same browser and profile where you use ClickUp. Drag the **Dig** button to that browser's bookmarks bar.
@@ -19,9 +34,10 @@ Do not install from a `file://` URL. Browsers block HTTPS pages such as ClickUp 
 1. Open a ClickUp Whiteboard.
 2. Click the Dig bookmark.
 3. Paste Mermaid flowchart syntax.
-4. Select **Chart Course & Arrange Phases**.
-5. Drag the Intake phase—or any other top-level phase block—to the position you want.
-6. Select **Dig into Whiteboard**. Dig re-lays out the nodes inside the moved containers, then uses the live ClickUp tldraw editor to create native assets, shapes, and bindings.
+4. Optionally select **Insert formal workflow template** to start with the standard notation.
+5. Select **Chart Course & Arrange Phases**.
+6. Drag the Intake phase—or any other top-level phase block—to the position you want.
+7. Select **Dig into Whiteboard**. Dig re-lays out the nodes inside the moved containers, then uses the live ClickUp tldraw editor to create native assets, shapes, and bindings.
 
 ## Source workflows
 
