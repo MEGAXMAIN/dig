@@ -6,6 +6,62 @@
   let currentLayout;
   let phaseOffsets = {};
 
+  const ICON_CATALOG = [
+    ["openai", "OpenAI", "logos:openai-icon", "10A37F", ["chatgpt"]],
+    ["claude", "Claude", "logos:claude-icon", "D97757", ["anthropic"]],
+    ["servicenow", "ServiceNow", null, "81B5A1", ["service now"]],
+    ["salesforce", "Salesforce", "logos:salesforce", "00A1E0"], ["slack", "Slack", "logos:slack-icon", "4A154B"],
+    ["microsoft-teams", "Microsoft Teams", "logos:microsoft-teams", "6264A7", ["teams"]], ["zoom", "Zoom", "logos:zoom-icon", "2D8CFF"],
+    ["google-drive", "Google Drive", "logos:google-drive", "4285F4", ["drive"]], ["gmail", "Gmail", "logos:google-gmail", "EA4335"],
+    ["google-calendar", "Google Calendar", "logos:google-calendar", "4285F4", ["gcal"]], ["google-sheets", "Google Sheets", "logos:google-sheets", "34A853", ["sheets"]],
+    ["google-docs", "Google Docs", "logos:google-docs", "4285F4", ["docs"]], ["google-cloud", "Google Cloud", "logos:google-cloud", "4285F4", ["gcp"]],
+    ["azure", "Microsoft Azure", "logos:microsoft-azure", "0078D4"], ["aws", "AWS", "logos:aws", "FF9900", ["amazon web services"]],
+    ["github", "GitHub", "logos:github-icon", "181717"], ["gitlab", "GitLab", "logos:gitlab", "FC6D26"], ["jira", "Jira", "logos:jira", "0052CC"],
+    ["confluence", "Confluence", "logos:confluence", "172B4D"], ["trello", "Trello", "logos:trello", "0052CC"], ["asana", "Asana", "logos:asana", "F06A6A"],
+    ["monday", "monday.com", "logos:monday-icon", "FF3D57", ["monday.com"]], ["notion", "Notion", "logos:notion-icon", "000000"],
+    ["airtable", "Airtable", "logos:airtable", "18BFFF"], ["clickup", "ClickUp", "logos:clickup", "7B68EE"], ["hubspot", "HubSpot", "logos:hubspot", "FF7A59"],
+    ["zendesk", "Zendesk", "logos:zendesk-icon", "03363D"], ["intercom", "Intercom", "logos:intercom-icon", "286EFA"],
+    ["workday", "Workday", "thesvg-color:workday", "F68D2E"], ["okta", "Okta", "logos:okta-icon", "007DC1"], ["stripe", "Stripe", "logos:stripe", "635BFF"],
+    ["shopify", "Shopify", "logos:shopify", "7AB55C"], ["docusign", "DocuSign", "thesvg-color:docusign", "FFCC22"], ["dropbox", "Dropbox", "logos:dropbox", "0061FF"],
+    ["box", "Box", "logos:box", "0061D5"], ["figma", "Figma", "logos:figma", "F24E1E"], ["canva", "Canva", "logos:canva", "00C4CC"],
+    ["miro", "Miro", "logos:miro-icon", "FFD02F"], ["zapier", "Zapier", "logos:zapier-icon", "FF4F00"], ["make", "Make", "logos:make", "6D00CC", ["integromat"]],
+    ["snowflake", "Snowflake", "logos:snowflake-icon", "29B5E8"], ["datadog", "Datadog", "logos:datadog", "632CA6"], ["new-relic", "New Relic", "logos:new-relic-icon", "1CE783", ["new relic"]],
+    ["sentry", "Sentry", "logos:sentry-icon", "362D59"], ["cloudflare", "Cloudflare", "logos:cloudflare-icon", "F38020"], ["twilio", "Twilio", "logos:twilio-icon", "F22F46"],
+    ["sendgrid", "SendGrid", "logos:sendgrid-icon", "1A82E2"], ["mailchimp", "Mailchimp", "logos:mailchimp-freddie", "FFE01B"],
+    ["calendly", "Calendly", "logos:calendly", "006BFF"], ["linear", "Linear", "logos:linear-icon", "5E6AD2"],
+  ].map(([slug, name, source, color, aliases = []]) => ({ slug, name, source, color, aliases }));
+
+  const normalize = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const iconBySlug = (slug) => ICON_CATALOG.find((icon) => icon.slug === slug);
+  function inferIcon(node) {
+    if (node.icon && iconBySlug(node.icon)) return node.icon;
+    const label = normalize(node.label);
+    const match = ICON_CATALOG.find((icon) => [icon.name, icon.slug, ...icon.aliases].some((alias) => {
+      const target = normalize(alias);
+      return label === target || (target.length > 3 && label.includes(target));
+    }));
+    return match ? match.slug : null;
+  }
+
+  const iconFallbackSvg = (icon) => {
+    const letters = icon.name.split(/\s+/).map((word) => word[0]).join("").slice(0, 3).toUpperCase();
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" rx="20" fill="#${icon.color}"/><text x="48" y="57" text-anchor="middle" font-family="Arial,sans-serif" font-size="28" font-weight="700" fill="white">${letters}</text></svg>`;
+  };
+  const dataSvg = (svg) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  async function loadIcon(icon) {
+    let svg = iconFallbackSvg(icon);
+    if (icon.source) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 4500);
+        const response = await fetch(`https://api.iconify.design/${icon.source}.svg`, { signal: controller.signal });
+        clearTimeout(timeout);
+        if (response.ok) svg = await response.text();
+      } catch (_) {}
+    }
+    return { name: icon.name, src: dataSvg(svg), size: svg.length };
+  }
+
   const styles = `
     #dig-root{all:initial;position:fixed;inset:0;z-index:2147483647;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#172b4d}
     #dig-root *{box-sizing:border-box}
@@ -21,6 +77,7 @@
     .sp-textarea{width:100%;flex:1;resize:none;border:1px solid #cfd6e4;border-radius:12px;padding:14px;font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;color:#182230;background:#fff;outline:none;min-height:230px}
     .sp-textarea:focus{border-color:#4f6bed;box-shadow:0 0 0 3px rgba(79,107,237,.12)}
     .sp-hint{font-size:12px;line-height:1.45;color:#667085;margin-top:10px}
+    .sp-icon-row{display:flex;gap:8px;margin-top:10px}.sp-icon-select{min-width:0;flex:1;border:1px solid #cfd6e4;border-radius:9px;padding:8px 10px;background:#fff;color:#344054;font-size:12px}.sp-icon-add{border:0;border-radius:9px;padding:8px 11px;background:#e9edff;color:#3d51b4;font-weight:700;cursor:pointer}
     .sp-preview{position:relative;overflow:auto;background-color:#f7f8fb;background-image:radial-gradient(#d8dee9 1px,transparent 1px);background-size:20px 20px}
     .sp-stage{min-width:100%;min-height:100%;padding:36px;display:grid;place-items:center}.sp-stage svg{filter:drop-shadow(0 8px 20px rgba(42,53,78,.08))}
     .sp-empty{max-width:420px;text-align:center;color:#667085;line-height:1.55}.sp-empty strong{display:block;font-size:18px;color:#344054;margin-bottom:6px}
@@ -39,7 +96,8 @@
   const labelSvg = (node) => {
     const lines = node.label.split("\n");
     const firstY = node.y + node.height / 2 - ((lines.length - 1) * 10.5);
-    return `<text x="${node.x + node.width / 2}" y="${firstY}" text-anchor="middle" dominant-baseline="middle" font-size="15" font-family="Inter,Arial,sans-serif" font-weight="600" fill="${node.style.text}">${lines.map((line, i) => `<tspan x="${node.x + node.width / 2}" dy="${i ? 21 : 0}">${esc(line)}</tspan>`).join("")}</text>`;
+    const centerX = node.x + node.width / 2 + (node.icon ? 18 : 0);
+    return `<text x="${centerX}" y="${firstY}" text-anchor="middle" dominant-baseline="middle" font-size="15" font-family="Inter,Arial,sans-serif" font-weight="600" fill="${node.style.text}">${lines.map((line, i) => `<tspan x="${centerX}" dy="${i ? 21 : 0}">${esc(line)}</tspan>`).join("")}</text>`;
   };
 
   function renderPreview() {
@@ -56,6 +114,7 @@
     try {
       const graph = window.DigCore.parseMermaid(source);
       if (!graph.nodes.size) throw new Error("No flowchart nodes were found. Start with flowchart TB or graph LR.");
+      graph.nodes.forEach((node) => { node.icon = inferIcon(node); });
       currentLayout = window.DigCore.layoutGraph(graph, null, phaseOffsets);
       const padding = 34;
       const phases = Array.from(currentLayout.phases.values()).map((phase) => `
@@ -78,7 +137,9 @@
         } else {
           shape = `<rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" rx="${node.shape === "stadium" ? node.height / 2 : 12}"/>`;
         }
-        return `<g fill="${node.style.fill}" stroke="${node.style.stroke}" stroke-width="2">${shape}</g>${labelSvg(node)}`;
+        const icon = node.icon && iconBySlug(node.icon);
+        const badge = icon ? `<g><rect x="${node.x + 13}" y="${node.y + node.height / 2 - 21}" width="42" height="42" rx="10" fill="#${icon.color}"/><text x="${node.x + 34}" y="${node.y + node.height / 2 + 5}" text-anchor="middle" font-size="12" font-family="Arial,sans-serif" font-weight="800" fill="white">${esc(icon.name.split(/\s+/).map((word) => word[0]).join("").slice(0, 3).toUpperCase())}</text></g>` : "";
+        return `<g fill="${node.style.fill}" stroke="${node.style.stroke}" stroke-width="2">${shape}</g>${badge}${labelSvg(node)}`;
       }).join("");
       const allX = [...Array.from(currentLayout.phases.values()).map((p) => p.x), ...Array.from(currentLayout.nodes.values()).map((n) => n.x)];
       const allY = [...Array.from(currentLayout.phases.values()).map((p) => p.y), ...Array.from(currentLayout.nodes.values()).map((n) => n.y)];
@@ -116,33 +177,80 @@
     });
   }
 
+  function getEditor() {
+    if (window.__digTlEditor) {
+      try { if (typeof window.__digTlEditor.createShapes === "function") return window.__digTlEditor; } catch (_) { window.__digTlEditor = null; }
+    }
+    const container = document.querySelector(".tl-container");
+    if (!container) throw new Error("No ClickUp Whiteboard canvas was found. Open a Whiteboard first.");
+    const fiberKey = Object.keys(container).find((key) => key.startsWith("__reactFiber"));
+    if (!fiberKey) throw new Error("ClickUp's Whiteboard editor could not be accessed.");
+    let fiber = container[fiberKey]; let editor = null; let depth = 0;
+    while (fiber && depth < 120) {
+      let state = fiber.memoizedState;
+      while (state) {
+        const candidate = state.memoizedState;
+        if (candidate && typeof candidate === "object" && typeof candidate.createShapes === "function" && typeof candidate.createBindings === "function") { editor = candidate; break; }
+        state = state.next;
+      }
+      if (editor) break;
+      fiber = fiber.return; depth += 1;
+    }
+    if (!editor) throw new Error("The live tldraw editor was not found. Click once on the Whiteboard canvas and try again.");
+    window.__digTlEditor = editor;
+    return editor;
+  }
+
   async function inject() {
     if (!currentLayout) return;
-    const payload = JSON.stringify(window.DigCore.toExcalidraw(currentLayout));
-    try { await navigator.clipboard.writeText(payload); }
-    catch (_) {
-      const temp = document.createElement("textarea"); temp.value = payload; document.body.appendChild(temp); temp.select(); document.execCommand("copy"); temp.remove();
+    const button = root.querySelector(".sp-primary");
+    const error = root.querySelector(".sp-error");
+    button.disabled = true; button.textContent = "Injecting…";
+    try {
+      const editor = getEditor();
+      const usedSlugs = Array.from(new Set(Array.from(currentLayout.nodes.values()).map((node) => node.icon).filter(Boolean)));
+      const loaded = await Promise.all(usedSlugs.map(async (slug) => [slug, await loadIcon(iconBySlug(slug))]));
+      const iconData = Object.fromEntries(loaded);
+      const result = window.DigCore.toTldraw(currentLayout, iconData);
+      if (result.assets.length && typeof editor.createAssets === "function") editor.createAssets(result.assets);
+      const batchSize = 50;
+      for (let i = 0; i < result.shapes.length; i += batchSize) editor.createShapes(result.shapes.slice(i, i + batchSize));
+      for (let i = 0; i < result.bindings.length; i += batchSize) editor.createBindings(result.bindings.slice(i, i + batchSize));
+      try { editor.zoomToFit(); } catch (_) {}
+      close();
+      const toast = document.createElement("div"); toast.className = "sp-toast";
+      toast.textContent = `${result.shapes.length} native ClickUp shapes injected${result.assets.length ? ` with ${result.assets.length} SaaS icon${result.assets.length === 1 ? "" : "s"}` : ""}.`;
+      document.body.appendChild(toast); setTimeout(() => toast.remove(), 6500);
+    } catch (e) {
+      error.textContent = e && e.message ? e.message : String(e);
+      error.style.display = "block";
+      button.disabled = false; button.textContent = "Inject into Whiteboard";
     }
-    close();
-    const toast = document.createElement("div"); toast.className = "sp-toast";
-    toast.textContent = "Diagram copied — click the Whiteboard and press ⌘V / Ctrl+V to add it safely.";
-    document.body.appendChild(toast); setTimeout(() => toast.remove(), 8000);
   }
 
   function close() { if (root) { root.remove(); root = null; } }
   function open() {
     if (root) return;
     root = document.createElement("div"); root.id = "dig-root";
+    const iconOptions = ICON_CATALOG.map((icon) => `<option value="${icon.slug}">${icon.name}</option>`).join("");
     root.innerHTML = `<style>${styles}</style><div class="sp-backdrop"></div><section class="sp-panel" role="dialog" aria-modal="true" aria-label="Dig Mermaid importer">
       <header class="sp-head"><div class="sp-brand"><span class="sp-wave">D</span><span>Dig</span></div><div class="sp-sub">Mermaid → editable ClickUp Whiteboard shapes</div><div class="sp-spacer"></div><button class="sp-close" title="Close" aria-label="Close">×</button></header>
-      <main class="sp-main"><section class="sp-input"><div class="sp-label">Mermaid flowchart</div><textarea class="sp-textarea" spellcheck="false" placeholder="flowchart LR\n  A[Discovery call] --> B{Approved?}\n  B -- Yes --> C[Build solution]"></textarea><div class="sp-error"></div><div class="sp-hint">Supported: flowchart/graph, subgraph phases, steps, decisions, class colors, labeled connectors, and TB/LR layouts. Drag a phase header in the preview to reposition it.</div></section><section class="sp-preview"><div class="sp-stage"><div class="sp-empty"><strong>Loading Dig…</strong>Preparing the diagram engine.</div></div></section></main>
-      <footer class="sp-foot"><div class="sp-status sp-count">No diagram yet</div><button class="sp-btn sp-secondary sp-reset">Reset phases</button><button class="sp-btn sp-secondary sp-preview-btn">Preview</button><button class="sp-btn sp-primary" disabled>Copy editable shapes</button></footer></section>`;
+      <main class="sp-main"><section class="sp-input"><div class="sp-label">Mermaid flowchart</div><textarea class="sp-textarea" spellcheck="false" placeholder="flowchart LR\n  A[Discovery call] --> B{Approved?}\n  B -- Yes --> C[Build solution]"></textarea><div class="sp-error"></div><div class="sp-hint">Use <strong>:::icon-openai</strong>, <strong>:::icon-claude</strong>, or any icon from the 50-app catalog. Dig also recognizes app names in labels.</div><div class="sp-icon-row"><select class="sp-icon-select" aria-label="SaaS icon catalog">${iconOptions}</select><button class="sp-icon-add" type="button">Insert icon node</button></div><div class="sp-hint">Supported: phases, steps, decisions, colors, labeled connectors, TB/LR layouts, and draggable phase positioning.</div></section><section class="sp-preview"><div class="sp-stage"><div class="sp-empty"><strong>Loading Dig…</strong>Preparing the diagram engine.</div></div></section></main>
+      <footer class="sp-foot"><div class="sp-status sp-count">No diagram yet</div><button class="sp-btn sp-secondary sp-reset">Reset phases</button><button class="sp-btn sp-secondary sp-preview-btn">Preview</button><button class="sp-btn sp-primary" disabled>Inject into Whiteboard</button></footer></section>`;
     document.body.appendChild(root);
     root.querySelector(".sp-close").addEventListener("click", close);
     root.querySelector(".sp-backdrop").addEventListener("click", close);
     root.querySelector(".sp-preview-btn").addEventListener("click", renderPreview);
     root.querySelector(".sp-reset").addEventListener("click", () => { phaseOffsets = {}; renderPreview(); });
     root.querySelector(".sp-primary").addEventListener("click", inject);
+    root.querySelector(".sp-icon-add").addEventListener("click", () => {
+      const slug = root.querySelector(".sp-icon-select").value;
+      const icon = iconBySlug(slug);
+      const textarea = root.querySelector(".sp-textarea");
+      const prefix = textarea.value.trim() ? "\n  " : "flowchart LR\n  ";
+      textarea.value += `${prefix}ICON_${slug.replace(/-/g, "_").toUpperCase()}_${Date.now().toString(36)}[${icon.name}]:::icon-${slug}`;
+      textarea.focus(); renderPreview();
+    });
     root.querySelector(".sp-textarea").addEventListener("keydown", (event) => { if ((event.metaKey || event.ctrlKey) && event.key === "Enter") renderPreview(); });
     document.addEventListener("keydown", function escape(event) { if (event.key === "Escape" && root) { close(); document.removeEventListener("keydown", escape); } });
     renderPreview();
