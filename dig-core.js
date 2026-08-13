@@ -191,6 +191,9 @@
 
     graph.nodes.forEach((node) => {
       node.type = semanticType(node);
+      const iconClass = Array.from(node.classes).find((name) => /^icon-/i.test(name));
+      const iconPrefix = node.id.match(/^ICON_([A-Za-z0-9-]+)_/i);
+      node.icon = iconClass ? iconClass.replace(/^icon-/i, "").toLowerCase() : iconPrefix ? iconPrefix[1].toLowerCase() : null;
       const classStyles = Array.from(node.classes).map((name) => graph.classDefs.get(name)).filter(Boolean);
       node.style = Object.assign({}, PALETTE[node.type], ...classStyles);
     });
@@ -440,5 +443,87 @@
     return { type: "excalidraw/clipboard", elements, files: {} };
   }
 
-  return { PALETTE, parseMermaid, layoutGraph, edgePoints, toExcalidraw, cleanLabel };
+  const richText = (label) => ({
+    type: "doc",
+    content: String(label || "").split("\n").map((line) => line
+      ? { type: "paragraph", content: [{ type: "text", text: line }] }
+      : { type: "paragraph" }),
+  });
+
+  function toTldraw(layout, iconData) {
+    const shapes = [];
+    const bindings = [];
+    const assets = [];
+    const nodeShapeIds = new Map();
+    const nonce = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    let sequence = 0;
+    const id = (kind, value) => `${kind}:${String(value).replace(/[^A-Za-z0-9_-]/g, "_")}_${nonce}_${sequence++}`;
+    const typeColors = { step: "blue", decision: "violet", agent: "green", integration: "orange", dashboard: "red" };
+
+    layout.phases.forEach((phase) => {
+      shapes.push({
+        id: id("shape", `phase_${phase.id}`), type: "geo", x: phase.x, y: phase.y,
+        props: { w: phase.width, h: phase.height, geo: "rectangle", color: "grey", fill: "none", dash: "dashed", size: "s", font: "sans", align: "start", verticalAlign: "start", richText: richText("") },
+      });
+      shapes.push({
+        id: id("shape", `phase_label_${phase.id}`), type: "geo", x: phase.x + 14, y: phase.y + 12,
+        props: { w: Math.min(260, Math.max(110, phase.label.length * 11 + 36)), h: 38, geo: "rectangle", color: "light-violet", fill: "semi", dash: "draw", size: "s", font: "sans", align: "middle", verticalAlign: "middle", richText: richText(phase.label) },
+      });
+    });
+
+    layout.nodes.forEach((node) => {
+      const shapeId = id("shape", `node_${node.id}`);
+      nodeShapeIds.set(node.id, shapeId);
+      const geo = node.shape === "decision" ? "diamond" : node.shape === "circle" ? "ellipse" : "rectangle";
+      const hasIcon = node.icon && iconData && iconData[node.icon];
+      shapes.push({
+        id: shapeId, type: "geo", x: node.x, y: node.y,
+        props: {
+          w: node.width, h: node.height, geo, color: typeColors[node.type] || "blue", fill: "semi",
+          dash: "draw", size: "m", font: "sans", align: "middle", verticalAlign: "middle",
+          richText: richText(hasIcon ? `     ${node.label}` : node.label),
+        },
+      });
+      if (hasIcon) {
+        const icon = iconData[node.icon];
+        const assetId = id("asset", `icon_${node.icon}`);
+        const iconId = id("shape", `icon_${node.id}`);
+        assets.push({
+          id: assetId, typeName: "asset", type: "image",
+          props: { name: `${icon.name || node.icon}.svg`, src: icon.src, w: 48, h: 48, mimeType: "image/svg+xml", isAnimated: false, fileSize: icon.size || icon.src.length },
+          meta: {},
+        });
+        shapes.push({ id: iconId, type: "image", x: node.x + 16, y: node.y + (node.height - 42) / 2, props: { w: 42, h: 42, assetId } });
+      }
+    });
+
+    layout.edges.forEach((edge) => {
+      const from = layout.nodes.get(edge.from);
+      const to = layout.nodes.get(edge.to);
+      const fromId = nodeShapeIds.get(edge.from);
+      const toId = nodeShapeIds.get(edge.to);
+      if (!from || !to || !fromId || !toId) return;
+      const arrowId = id("shape", `arrow_${edge.id}`);
+      shapes.push({
+        id: arrowId, type: "arrow", x: 0, y: 0,
+        props: { color: "grey", dash: edge.style === "dashed" ? "dashed" : "draw", size: "s", arrowheadEnd: "arrow", arrowheadStart: "none", start: { x: 0, y: 0 }, end: { x: 0, y: 0 }, richText: richText(edge.label || "") },
+      });
+      const fc = { x: from.x + from.width / 2, y: from.y + from.height / 2 };
+      const tc = { x: to.x + to.width / 2, y: to.y + to.height / 2 };
+      const horizontal = Math.abs(tc.x - fc.x) >= Math.abs(tc.y - fc.y);
+      let startAnchor; let endAnchor;
+      if (horizontal) {
+        startAnchor = tc.x >= fc.x ? { x: 1, y: 0.5 } : { x: 0, y: 0.5 };
+        endAnchor = tc.x >= fc.x ? { x: 0, y: 0.5 } : { x: 1, y: 0.5 };
+      } else {
+        startAnchor = tc.y >= fc.y ? { x: 0.5, y: 1 } : { x: 0.5, y: 0 };
+        endAnchor = tc.y >= fc.y ? { x: 0.5, y: 0 } : { x: 0.5, y: 1 };
+      }
+      bindings.push({ id: id("binding", `start_${edge.id}`), type: "arrow", fromId: arrowId, toId: fromId, props: { terminal: "start", isPrecise: false, isExact: false, normalizedAnchor: startAnchor } });
+      bindings.push({ id: id("binding", `end_${edge.id}`), type: "arrow", fromId: arrowId, toId, props: { terminal: "end", isPrecise: false, isExact: false, normalizedAnchor: endAnchor } });
+    });
+    return { shapes, bindings, assets };
+  }
+
+  return { PALETTE, parseMermaid, layoutGraph, edgePoints, toExcalidraw, toTldraw, cleanLabel };
 });
